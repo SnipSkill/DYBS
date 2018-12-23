@@ -1,0 +1,43 @@
+//Sets where we want to build our defense portals
+public void SetDefensePortalsLocations(Game game)
+{
+    if (game.GetEnemyPortals().Length == 0)
+        return;
+    Castle myCastle = game.GetMyCastle();
+    Location[] portalsLocations = new Location[game.GetEnemyPortals().Length];
+    for (int i = 0; i < game.GetEnemyPortals().Length; i++)
+    {
+        DefensePortalsLocations[i] = myCastle.Location.Towards(game.GetEnemyPortals()[i].Location, game.CastleSize + game.PortalSize + 1);
+    }
+
+
+    Stack<Location> theFinalLocations = new Stack<Location>();
+
+    //checks if two portals are too close
+    //if they are then change the location of the average of the two locations
+    for (int i = 0; i < portalsLocations.Length; i++)
+    {
+        bool isPortalCloseToOtherPortal = false;
+        for (int j = 0; j < portalsLocations.Length; j++)
+        {
+            if (portalsLocations[i].InRange(portalsLocations[j], game.PortalSize) && i != j)
+            {
+                isPortalCloseToOtherPortal = true;
+                int avgCols = (portalsLocations[i].Col + portalsLocations[j].Col) / 2;
+                int avgRows = (portalsLocations[i].Row + portalsLocations[j].Row) / 2;
+                theFinalLocations.Push(new Location(avgRows, avgCols));
+                break;
+            }
+        }
+        if (!isPortalCloseToOtherPortal)
+            theFinalLocations.Push(portalsLocations[i]);
+    }
+
+    int finalArraySize = theFinalLocations.Count;
+
+    DefensePortalsLocations = new Location[finalArraySize];
+    for (int i = 0; i < finalArraySize; i++)
+    {
+        DefensePortalsLocations[i] = theFinalLocations.Pop();
+    }
+}

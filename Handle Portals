@@ -1,0 +1,25 @@
+private void HandlePortals(Game game)
+{
+    // Go over all of my portals.
+    foreach (Portal portal in game.GetMyPortals())
+    {
+        if (game.GetMyIceTrolls().Length < DefenseNum && IsGenerateIceTroll(game))
+        {
+            if (portal.CanSummonIceTroll() && portal == GetDefensePortal(game))
+            {
+                // Summons an ice troll
+                portal.SummonIceTroll();
+                // Print a message.
+            }
+        }
+        else
+        {
+            if (portal.CanSummonLavaGiant() && portal == GetAttackPortal(game) && !isElfReadyToBuildPortal)
+            {
+                // Summon the lava giant.
+                portal.SummonLavaGiant();
+                // Print a message.
+            }
+        }
+    }
+}

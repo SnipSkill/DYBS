@@ -1,0 +1,189 @@
+public class PortalFunc
+{
+    public PortalFunc() {};
+    
+    public Portal GetDefensePortal(Game game)
+    {
+        Castle myCastle = game.GetMyCastle(); // My Castle
+
+        Location[] myDefensePortals = GetPortalsThatExistByLocation(game, DefensePortalsLocations);
+        Location closestPortalToEnemyEntity = null;
+        if (myDefensePortals.Length != 0)
+            closestPortalToEnemyEntity = myDefensePortals[0];
+        else
+            return null;
+
+        Location closestEnemyEntityToCastle = GetClosestEnemyEntityToLocation(game, myCastle.Location);
+
+        foreach (Location portalLocation in myDefensePortals)
+        {
+            if (portalLocation.Distance(closestEnemyEntityToCastle) < closestPortalToEnemyEntity.Distance(closestEnemyEntityToCastle))
+                closestPortalToEnemyEntity = portalLocation;
+        }
+
+        return GetPortalByLocation(game, closestPortalToEnemyEntity);
+    }
+
+    public Portal GetPortalByLocation(Game game, Location location)
+    {
+        foreach (Portal portal in game.GetMyPortals())
+        {
+            if (portal.Location.InRange(location, portal.Size))
+                return portal;
+        }
+        return null;
+    }
+    
+    public Portal GetClosestEnemyPortalTo(Game game, Location location)
+    {
+        if (game.GetEnemyPortals().Length == 0)
+            return null;
+        Portal closest = game.GetEnemyPortals()[0];
+        foreach (Portal enemyP in game.GetEnemyPortals())
+        {
+            if (enemyP.Location.Distance(location) < closest.Location.Distance(location))
+                closest = enemyP;
+        }
+        return closest;
+    }
+
+    public Portal GetMyClosestPortalTo(Game game, Location location)
+    {
+        if (game.GetMyPortals().Length == 0)
+            return null;
+        Portal closest = game.GetMyPortals()[0];
+        foreach (Portal myP in game.GetMyPortals())
+        {
+            if (myP.Location.Distance(location) < closest.Location.Distance(location))
+                closest = myP;
+        }
+        return closest;
+    }
+    
+            public Location[] GetPortalsThatDoNotExistByLocation(Game game, Location[] locations)
+        {
+            int arraySize = 0;
+
+
+            for (int i = 0; i < locations.Length; i++)
+            {
+                if (DoesPortalExist(game, locations[i]))
+                    arraySize++;
+            }
+
+            arraySize = locations.Length - arraySize;
+
+            if (arraySize == 0) return new Location[0];
+
+            Location[] portalsLocationsArray = new Location[arraySize];
+            int count = 0;
+
+            for (int i = 0; i < locations.Length; i++)
+            {
+                if (!DoesPortalExist(game, locations[i]))
+                {
+                    portalsLocationsArray[count] = locations[i];
+                    count++;
+                }
+            }
+            return portalsLocationsArray;
+        }
+
+        public Location[] GetPortalsThatExistByLocation(Game game, Location[] locations)
+        {
+            int arraySize = 0;
+
+
+            for (int i = 0; i < locations.Length; i++)
+            {
+                if (!DoesPortalExist(game, locations[i]))
+                    arraySize++;
+            }
+
+            arraySize = locations.Length - arraySize;
+
+            if (arraySize == 0) return new Location[0];
+
+            Location[] portalsLocationsArray = new Location[arraySize];
+            int count = 0;
+
+            for (int i = 0; i < locations.Length; i++)
+            {
+                if (DoesPortalExist(game, locations[i]))
+                {
+                    portalsLocationsArray[count] = locations[i];
+                    count++;
+                }
+            }
+            return portalsLocationsArray;
+        }
+        
+        //sets where we want to build our defense portals
+        public void SetDefensePortalsLocations(Game game)
+        {
+            if (game.GetEnemyPortals().Length == 0)
+                return;
+            Castle myCastle = game.GetMyCastle();
+            Location[] portalsLocations = new Location[game.GetEnemyPortals().Length];
+            for (int i = 0; i < game.GetEnemyPortals().Length; i++)
+            {
+                portalsLocations[i] = myCastle.Location.Towards(game.GetEnemyPortals()[i].Location, game.CastleSize + game.PortalSize + 1);
+            }
+
+
+            Stack<Location> theFinalLocations = new Stack<Location>();
+
+            //checks if two portals are too close
+            //if they are then change the location of the average of the two locations
+            for (int i = 0; i < portalsLocations.Length; i++)
+            {
+                bool isPortalCloseToOtherPortal = false;
+                for (int j = 0; j < portalsLocations.Length; j++)
+                {
+                    if (portalsLocations[i].InRange(portalsLocations[j], game.PortalSize) && i != j)
+                    {
+                        isPortalCloseToOtherPortal = true;
+                        int avgCols = (portalsLocations[i].Col + portalsLocations[j].Col) / 2;
+                        int avgRows = (portalsLocations[i].Row + portalsLocations[j].Row) / 2;
+                        theFinalLocations.Push(new Location(avgRows, avgCols));
+                        break;
+                    }
+                }
+                if (!isPortalCloseToOtherPortal)
+                    theFinalLocations.Push(portalsLocations[i]);
+            }
+
+            int finalArraySize = theFinalLocations.Count;
+
+            DefensePortalsLocations = new Location[finalArraySize];
+            for (int i = 0; i < finalArraySize; i++)
+            {
+                DefensePortalsLocations[i] = theFinalLocations.Pop();
+            }
+
+        }
+
+
+        public void SetAttackPortalLocations(Game game)
+        {
+            Castle myCastle = game.GetMyCastle();
+            Castle enemyCastle = game.GetEnemyCastle();
+            int midDistance = myCastle.Location.Distance(enemyCastle.Location) / 2;
+            int closeDistance = game.CastleSize + game.PortalSize + 1;
+
+            AttackPortalsLocations = new Location[2];
+            AttackPortalsLocations[0] = enemyCastle.Location.Towards(myCastle.Location, midDistance);
+            AttackPortalsLocations[1] = enemyCastle.Location.Towards(myCastle.Location, closeDistance);
+
+        }
+
+        public bool DoesPortalExist(Game game, Location location)
+        {
+            foreach (Portal myPortal in game.GetMyPortals())
+            {
+                if (location.InRange(myPortal.Location, game.PortalSize))
+                    return true;
+            }
+            return false;
+        }
+}

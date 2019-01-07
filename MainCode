@@ -23,6 +23,7 @@ namespace MyBot
         /// <param name="game">the current game state</param>
         public void DoTurn(Game game)
         {
+            isElfReadyToBuildPortal = false;
             SetAttackPortalLocations(game);
             SetDefensePortalsLocations(game);
             // Give orders to my elves.
@@ -49,7 +50,7 @@ namespace MyBot
             Elf portalElfAttack = null;
 
             // portalElvesDefense - sets elves that create defense portals
-            Elf[] portalElvesDefense = new Elf[GetPortalsByLocation(game, DefensePortalsLocations).Length];
+            Elf[] portalElvesDefense = new Elf[GetPortalsThatDoNotExistByLocation(game, DefensePortalsLocations).Length];
 
 
             //set portalElvesDefense to null
@@ -62,7 +63,7 @@ namespace MyBot
 
             for (int i = 0; i < portalElvesDefense.Length; i++)
             {
-                portalElvesDefense[i] = GetClosestElfToNotFrom(game, GetPortalsByLocation(game, DefensePortalsLocations)[i].Location, portalElvesDefense);
+                portalElvesDefense[i] = GetClosestElfToNotFrom(game, GetPortalsThatDoNotExistByLocation(game, DefensePortalsLocations)[i], portalElvesDefense);
             }
 
             int numOfElvesDefense = 0;
@@ -75,11 +76,12 @@ namespace MyBot
 
             int indexOfAttackPortalsLocations = 0;
 
-            if (numOfElvesDefense > 1)
+            if (numOfElvesDefense > 1 || numOfElvesDefense == 0 || game.GetMyLivingElves().Length - numOfElvesDefense > 0)
             {
                 if (DoesPortalExist(game, AttackPortalsLocations[0]))
                     indexOfAttackPortalsLocations = 1;
-                portalElfAttack = GetClosestElfToNotFrom(game, AttackPortalsLocations[indexOfAttackPortalsLocations], portalElvesDefense);
+                if (!DoesPortalExist(game, AttackPortalsLocations[indexOfAttackPortalsLocations]))
+                    portalElfAttack = GetClosestElfToNotFrom(game, AttackPortalsLocations[indexOfAttackPortalsLocations], portalElvesDefense);
             }
 
             if (portalElfAttack != null)
@@ -88,8 +90,10 @@ namespace MyBot
             for (int i = 0; i < portalElvesDefense.Length; i++)
             {
                 if (portalElvesDefense[i] != null)
+                {
                     if (!portalElvesDefense[i].AlreadyActed)
                         HandleElfPortal(game, portalElvesDefense[i], DefensePortalsLocations[i]);
+                }
 
             }
 
@@ -135,21 +139,25 @@ namespace MyBot
 
         public void HandleElfPortal(Game game, Elf elf, Location portalLocation)
         {
-            if (GetClosestEnemyPortalTo(game, portalLocation).Location.InRange(portalLocation, game.PortalSize))
+            System.Console.WriteLine(portalLocation.ToString());
+            if (game.GetEnemyPortals().Length > 0)
+                if (GetClosestEnemyPortalTo(game, portalLocation).Location.InRange(portalLocation, game.PortalSize))
+                {
+                    if (elf.InAttackRange(GetClosestEnemyPortalTo(game, portalLocation).Location))
+                        elf.Attack(GetClosestEnemyPortalTo(game, portalLocation));
+                    else
+                        elf.MoveTo(GetClosestEnemyPortalTo(game, portalLocation).Location);
+                }
+            if (!elf.AlreadyActed)
             {
-                if (elf.InAttackRange(GetClosestEnemyPortalTo(game, portalLocation).Location))
-                    elf.Attack(GetClosestEnemyPortalTo(game, portalLocation));
-                else
-                    elf.MoveTo(GetClosestEnemyPortalTo(game, portalLocation).Location);
-            }
-            else if (!elf.Location.InRange(portalLocation, 10))
-            {
-                elf.MoveTo(portalLocation);
-                SetIsElfReadyToBuildPortal(game, elf, portalLocation);
-            }
-            else if (elf.CanBuildPortal())
-            {
-                elf.BuildPortal();
+                if (!elf.Location.InRange(portalLocation, 10))
+                {
+                    elf.MoveTo(portalLocation);
+                }
+                else if (elf.CanBuildPortal())
+                {
+                    elf.BuildPortal();
+                }
                 SetIsElfReadyToBuildPortal(game, elf, portalLocation);
             }
         }
@@ -167,35 +175,14 @@ namespace MyBot
         public void SetIsElfReadyToBuildPortal(Game game, Elf elf, Location portalLocation)
         {
             int turnsTillEnoughtManaForPortal = (game.PortalCost - game.GetMyMana()) / game.DefaultManaPerTurn;
-            if (TurnsToGetToLocation(game, elf.MaxSpeed, elf.Location, portalLocation) <= turnsTillEnoughtManaForPortal)
-                isElfReadyToBuildPortal = true;
-        }
 
-        //handles the portals
-        private void HandlePortals(Game game)
-        {
-            // Go over all of my portals.
-            foreach (Portal portal in game.GetMyPortals())
+            System.Console.WriteLine(turnsTillEnoughtManaForPortal);
+            System.Console.WriteLine(TurnsToGetToLocation(game, elf.MaxSpeed, elf.Location, portalLocation));
+            if (TurnsToGetToLocation(game, elf.MaxSpeed, elf.Location, portalLocation) <= turnsTillEnoughtManaForPortal)
             {
-                if (game.GetMyIceTrolls().Length < DefenseNum && IsGenerateIceTroll(game))
-                {
-                    if (portal.CanSummonIceTroll() && portal == GetDefensePortal(game))
-                    {
-                        // Summons an ice troll
-                        portal.SummonIceTroll();
-                        // Print a message.
-                    }
-                }
-                else
-                {
-                    if (portal.CanSummonLavaGiant() && portal == GetAttackPortal(game) && !isElfReadyToBuildPortal)
-                    {
-                        // Summon the lava giant.
-                        portal.SummonLavaGiant();
-                        // Print a message.
-                    }
-                }
+                isElfReadyToBuildPortal = true;
             }
+            System.Console.WriteLine(isElfReadyToBuildPortal);
         }
 
 
@@ -208,7 +195,7 @@ namespace MyBot
             Location[] portalsLocations = new Location[game.GetEnemyPortals().Length];
             for (int i = 0; i < game.GetEnemyPortals().Length; i++)
             {
-                DefensePortalsLocations[i] = myCastle.Location.Towards(game.GetEnemyPortals()[i].Location, game.CastleSize + game.PortalSize + 1);
+                portalsLocations[i] = myCastle.Location.Towards(game.GetEnemyPortals()[i].Location, game.CastleSize + game.PortalSize + 1);
             }
 
 
@@ -268,37 +255,62 @@ namespace MyBot
             return false;
         }
 
-        public Portal[] GetPortalsByLocation(Game game, Location[] locations)
+        public Location[] GetPortalsThatDoNotExistByLocation(Game game, Location[] locations)
         {
             int arraySize = 0;
 
-            foreach (Portal portal in game.GetMyPortals())
+
+            for (int i = 0; i < locations.Length; i++)
             {
-                for (int i = 0; i < locations.Length; i++)
-                {
-                    if (portal.Location.InRange(locations[i], 10))
-                        arraySize++;
-                }
+                if (DoesPortalExist(game, locations[i]))
+                    arraySize++;
             }
 
-            if (arraySize == 0) return null;
+            arraySize = locations.Length - arraySize;
 
-            Portal[] portalsArray = new Portal[arraySize];
+            if (arraySize == 0) return new Location[0];
+
+            Location[] portalsLocationsArray = new Location[arraySize];
             int count = 0;
 
-            foreach (Portal portal in game.GetMyPortals())
+            for (int i = 0; i < locations.Length; i++)
             {
-                for (int i = 0; i < locations.Length; i++)
+                if (!DoesPortalExist(game, locations[i]))
                 {
-                    if (portal.Location.InRange(locations[i], 10))
-                    {
-                        portalsArray[count] = portal;
-                        count++;
-                    }
+                    portalsLocationsArray[count] = locations[i];
+                    count++;
                 }
             }
+            return portalsLocationsArray;
+        }
 
-            return portalsArray;
+        public Location[] GetPortalsThatExistByLocation(Game game, Location[] locations)
+        {
+            int arraySize = 0;
+
+
+            for (int i = 0; i < locations.Length; i++)
+            {
+                if (!DoesPortalExist(game, locations[i]))
+                    arraySize++;
+            }
+
+            arraySize = locations.Length - arraySize;
+
+            if (arraySize == 0) return new Location[0];
+
+            Location[] portalsLocationsArray = new Location[arraySize];
+            int count = 0;
+
+            for (int i = 0; i < locations.Length; i++)
+            {
+                if (DoesPortalExist(game, locations[i]))
+                {
+                    portalsLocationsArray[count] = locations[i];
+                    count++;
+                }
+            }
+            return portalsLocationsArray;
         }
 
         public Portal GetClosestEnemyPortalTo(Game game, Location location)
@@ -366,7 +378,13 @@ namespace MyBot
             Creature closestCreature = GetClosestEnemyCreatureTo(game, myCastle.Location); // Closest Enemy Creature to Ally Castle
             Elf closestElf = GetClosestEnemyElfTo(game, myCastle.Location); // Closest Enemy Elf to Ally Castle
 
-            if (closestCreature.Location.Distance(myCastle.Location) < closestElf.Location.Distance(myCastle.Location))
+            if (closestCreature == null && closestElf == null)
+                return null;
+            else if (closestCreature == null)
+                return closestElf.Location;
+            else if (closestElf == null)
+                return closestCreature.Location;
+            else if (closestCreature.Location.Distance(myCastle.Location) < closestElf.Location.Distance(myCastle.Location))
                 return closestCreature.Location;
             else
                 return closestElf.Location;
@@ -382,6 +400,7 @@ namespace MyBot
             bool inElvesArray = false;
             foreach (Elf elf in game.GetMyLivingElves())
             {
+                inElvesArray = false;
                 for (int i = 0; i < elves.Length; i++)
                 {
                     if (elf == elves[i])
@@ -390,14 +409,14 @@ namespace MyBot
                 }
                 if (elf.Location.Distance(location) < closest.Location.Distance(location) && !inElvesArray)
                     closest = elf;
-                inElvesArray = false;
             }
+            inElvesArray = false;
             for (int i = 0; i < elves.Length; i++)
             {
                 if (closest == elves[i])
                     inElvesArray = true;
             }
-            if (!inElvesArray)
+            if (inElvesArray)
                 return null;
             return closest;
         }
@@ -405,8 +424,9 @@ namespace MyBot
         public Portal GetDefensePortal(Game game)
         {
             Castle myCastle = game.GetMyCastle(); // My Castle
-            Portal[] myDefensePortals = GetPortalsByLocation(game, DefensePortalsLocations);
-            Portal closestPortalToEnemyEntity = null;
+
+            Location[] myDefensePortals = GetPortalsThatExistByLocation(game, DefensePortalsLocations);
+            Location closestPortalToEnemyEntity = null;
             if (myDefensePortals.Length != 0)
                 closestPortalToEnemyEntity = myDefensePortals[0];
             else
@@ -414,13 +434,23 @@ namespace MyBot
 
             Location closestEnemyEntityToCastle = GetClosestEnemyEntityToLocation(game, myCastle.Location);
 
-            foreach (Portal portal in myDefensePortals)
+            foreach (Location portalLocation in myDefensePortals)
             {
-                if (portal.Location.Distance(closestEnemyEntityToCastle) < closestPortalToEnemyEntity.Location.Distance(closestEnemyEntityToCastle))
-                    closestPortalToEnemyEntity = portal;
+                if (portalLocation.Distance(closestEnemyEntityToCastle) < closestPortalToEnemyEntity.Distance(closestEnemyEntityToCastle))
+                    closestPortalToEnemyEntity = portalLocation;
             }
 
-            return closestPortalToEnemyEntity;
+            return GetPortalByLocation(game, closestPortalToEnemyEntity);
+        }
+
+        public Portal GetPortalByLocation(Game game, Location location)
+        {
+            foreach (Portal portal in game.GetMyPortals())
+            {
+                if (portal.Location.InRange(location, portal.Size))
+                    return portal;
+            }
+            return null;
         }
 
 
@@ -455,13 +485,40 @@ namespace MyBot
             return GetMyClosestPortalTo(game, enemyCastle.Location);
         }
 
+        //handles the portals
+        private void HandlePortals(Game game)
+        {
+            // Go over all of my portals.
 
+            System.Console.WriteLine(isElfReadyToBuildPortal);
+            foreach (Portal portal in game.GetMyPortals())
+            {
+                if (game.GetMyIceTrolls().Length < DefenseNum && IsGenerateIceTroll(game))
+                {
+                    if (portal.CanSummonIceTroll() && portal == GetDefensePortal(game))
+                    {
+                        // Summons an ice troll
+                        portal.SummonIceTroll();
+                        // Print a message.
+                    }
+                }
+                else
+                {
+                    if (portal.CanSummonLavaGiant() && portal == GetAttackPortal(game) && !isElfReadyToBuildPortal)
+                    {
+                        // Summon the lava giant.
+                        portal.SummonLavaGiant();
+                        // Print a message.
+                    }
+                }
+            }
+        }
 
 
         /// <summary>
         /// Gives orders to my portals.
         /// </summary>
         /// <param name="game">the current game state</param>
-       
+
     }
 }
